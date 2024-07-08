@@ -1,60 +1,92 @@
+OS_ARCH := x86_64
 
-arch ?= x86_64
+BUILD_DIR := output
+KERNEL_DIR := kernel
+OBJECT_DIR := $(BUILD_DIR)/obj
+BIN_DIR := $(BUILD_DIR)/bin
+ISO_DIR := $(BUILD_DIR)/iso
+ISO_BOOT_DIR := $(ISO_DIR)/boot
+ISO_GRUB_DIR := $(ISO_BOOT_DIR)/grub
 
-output_dir = out
-grub_dir = boot/grub
-kernel_dir = boot
-iso_dir = isofiles
+INCLUDES_DIR := src/include
+INCLUDES := $(patsubst %, -I%, $(INCLUDES_DIR))
 
-grub_cfg = grub/grub.cfg
+OS_NAME = hexos
+OS_BIN = $(OS_NAME).bin
+OS_ISO = $(OS_NAME).iso
 
-assembly_ld = src/arch/$(arch)/linker.lds
-assembly_dir = src/arch/$(arch)
-assembly_source = $(wildcard src/arch/$(arch)/*.asm)
-assembly_object = $(patsubst src/arch/$(arch)/%.asm, $(output_dir)/arch/$(arch)/%.o, $(assembly_source))
+LINKER_SCRIPT := src/arch/$(OS_ARCH)/linker.lds
 
-c_src = $(wildcard src/arch/$(arch)/*.c)
-c_obj = $(patsubst src/arch/$(arch)/%.c, $(output_dir)/arch/$(arch)/%.o, $(c_src))
+CC := clang
+# AS := as
+AS := nasm
 
-kernel = $(output_dir)/kernel.bin
-iso = $(output_dir)/os-$(arch).iso
+O := -O3
+W := -Wall -Wextra
+CFLAGS := -std=c23 -ffreestanding -mno-red-zone $(O) $(W)
+LDFLAGS := -ffreestanding $(O) -nostdlib -lgcc 
 
-.PHONY:all clean
+SOURCE_FILES := $(shell find -name "*.[cs]")
+SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(SOURCE_FILES))
 
-all: $(kernel) $(iso)
+# QEMU_DBG_FLAGS := -s -S -no-reboot -no-shutdown -d cpu,int  
+QEMU_DBG_FLAGS := -s -S 
 
+echo:
+	echo $(BUILD_DIR)
+	echo $(BIN_DIR)
 
-mkdir:
-	mkdir -p $(output_dir)/$(grub_dir)
-	mkdir -p $(output_dir)/arch/$(arch)
+$(OBJECT_DIR):
+	mkdir -p $(OBJECT_DIR)
+	
+$(BIN_DIR):
+	echo $(BIN_DIR)
+	mkdir -p $(BIN_DIR)
+	
+$(ISO_DIR):
+	mkdir -p $(ISO_DIR)
+	mkdir -p $(ISO_BOOT_DIR)
+	mkdir -p $(ISO_GRUB_DIR)
+	
+$(OBJECT_DIR)/%.s.o: %.s
+	mkdir -p $(@D)
+	$(AS) -f elf64 $< -o $@
 
-grub: $(grub_cfg)
-	cp ./$(grub_cfg) $(output_dir)/$(grub_dir)
+$(OBJECT_DIR)/%.c.o: %.c
+	mkdir -p $(@D)
+	$(CC) $(INCLUDES) -c -fno-builtin $(CFLAGS) -O $< -o $@ 
+	
+$(BIN_DIR)/$(OS_BIN): $(OBJECT_DIR) $(BIN_DIR) $(SRC)
+	ld.lld -n -T $(LINKER_SCRIPT) -o $(BIN_DIR)/$(OS_BIN) $(SRC)
+	
+$(BUILD_DIR)/$(OS_ISO): $(ISO_DIR) $(BIN_DIR)/$(OS_BIN) 
+	cp grub/grub.cfg $(ISO_GRUB_DIR)/grub.cfg
+	cp $(BIN_DIR)/$(OS_BIN) $(ISO_BOOT_DIR)/kernel.bin
+	grub-mkrescue -o $(BUILD_DIR)/$(OS_ISO) $(ISO_DIR)
+	
+all: clean $(BUILD_DIR)/$(OS_ISO)
 
-$(kernel): $(assembly_object) $(c_obj)
-	ld -n -T $(assembly_ld) -o $(kernel) $(assembly_object) $(c_obj)
-
-
-$(iso): $(kernel) $(grub_cfg)
-	mkdir -p $(output_dir)/$(iso_dir)
-	mkdir -p $(output_dir)/$(iso_dir)/$(grub_dir)
-
-	cp -r $(grub_cfg) $(output_dir)/$(iso_dir)/$(grub_dir)
-	cp -r $(kernel) $(output_dir)/$(iso_dir)/$(kernel_dir)
-
-	grub-mkrescue -o $(iso) $(output_dir)/$(iso_dir)
-
-run:
-	qemu-system-x86_64 -cdrom $(iso) -m 8G -enable-kvm
+all-debug: O := -O0
+all-debug: CFLAGS := -g -std=c23 -ffreestanding $(O) $(W) -fomit-frame-pointer
+all-debug: LDFLAGS := -ffreestanding $(0) -nostdlib -lgcc
+all-debug: clean $(BUILD_DIR)/$(OS_ISO)
+	objdump -M intel -D $(BIN_DIR)/$(OS_BIN) > dump
 
 clean:
-	rm -rf $(output_dir)
+	rm -rf $(BUILD_DIR)
 
-# compile assembly file
-$(output_dir)/arch/$(arch)/%.o: $(assembly_dir)/%.asm
-	mkdir -p $(shell dirname $@)
-	nasm -f elf64 $< -o $@
+run: $(BUILD_DIR)/$(OS_DIR)
+	qemu-system-x86_64 -cdrom $(BUILD_DIR)/$(OS_ISO) -bios bios/OVMF.fd
 
-$(output_dir)/arch/$(arch)/%.o: src/arch/$(arch)/%.c
-	mkdir -p $(shell dirname $@)
-	clang -c -fno-builtin -O $< -o $@
+debug-qemu: all-debug
+	objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
+	qemu-system-x86_64 $(QEMU_DBG_FLAGS) -cdrom $(BUILD_DIR)/$(OS_ISO) 
+	
+debug-qemu-gdb: all-debug
+	objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
+	qemu-system-x86_64 $(QEMU_DBG_FLAGS) -cdrom $(BUILD_DIR)/$(OS_ISO) & \
+	gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:1234"
+	
+debug-bochs: all-debug
+	bochs -q -f bochs.cfg
+	
