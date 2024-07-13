@@ -3,7 +3,7 @@
 #define TTY_WIDTH 80
 #define TTY_HEIGHT 25
 
-uint16_t *buffer = (uint16_t*)0xA8000;
+uint16_t *buffer = (uint16_t*)0xB8000;
 
 uint16_t theme_color = TTY_COLOR_BLACK;
 

@@ -24,13 +24,13 @@ AS := nasm
 O := -O3
 W := -Wall -Wextra
 CFLAGS := -std=c23 -ffreestanding -mno-red-zone $(O) $(W)
-LDFLAGS := -ffreestanding $(O) -nostdlib -lgcc 
+LDFLAGS := -ffreestanding $(O) -nostdlib 
 
 SOURCE_FILES := $(shell find -name "*.[cs]")
 SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(SOURCE_FILES))
 
 # QEMU_DBG_FLAGS := -s -S -no-reboot -no-shutdown -d cpu,int  
-QEMU_DBG_FLAGS := -s -S 
+QEMU_DBG_FLAGS := -s -S  -m 4G -cpu qemu64 
 
 echo:
 	echo $(BUILD_DIR)

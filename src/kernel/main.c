@@ -4,7 +4,13 @@ void _kernel_init() {
   
 }
 
-void _kernel_main() {
+extern int cpu_id();
+void _kernel_main(uint32_t magic, uint32_t addr) {
+    int a = cpu_id();
+    int b = a;
+    int c= a;
+    a++;
+    
     
     tty_set_theme(TTY_COLOR_GREEN, TTY_COLOR_BLACK);
     tty_put_str("Hello World\n");
