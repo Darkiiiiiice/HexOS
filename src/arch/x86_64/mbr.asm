@@ -24,14 +24,21 @@
     READ_CURSOR_POS_INT equ 0x03
     CLEAR_SCREEN_INT equ 0x06
     WRITE_STRING_INT equ 0x13
-_mbr_start:
+section _mbr_start:
     mov ax, cs
     mov ds, ax
-    mov es, ax
     mov fs, ax
     mov ss, ax
     mov ax, stack_bottom
     mov sp, ax
+    mov ax, 0xB800
+    mov es, ax
+    
+    mov bx, 0x00
+    push bx
+    mov bp, sp
+    mov ax, [bp]
+
     
     ; Clear Screen INT 0x10
     ; AH 0x06 AL (Row, 0 is all)
@@ -45,37 +52,34 @@ _mbr_start:
 
     int VIDEO_INTERRUPT
     
-    ; Read Cursor position INT 0x10
-    ; AH 0x03 
-    ; BH Display page
-    ; CH starting line of the blinking cursor
-    ; CL ending line of the blinking curor
-    ; DH screen line which cursor located
-    ; DL screen column which cursor located
-    mov ax, READ_CURSOR_POS_INT << 8
-    mov bh, 0x00
+    
+    mov ah, 0x07
+    mov bx, message
+    mov cx, [message_len]
+    
+    call _print
+    
+    
+    jmp $
+    ; AH backgroud color and frontground color
+    ; BX string address
+    ; CX count
+_print:
+    mov byte al, [bx]
+    mov di, [bp]
+    mov [es:di], ax
+    inc bx
+    add di, 2
+    mov [bp], di
+    
+    loop _print
+    
+    mov word [es:di], 0x8F5F ; black: wihite : blink '_'
+    
+    ret
 
-    int VIDEO_INTERRUPT
     
-    ; Write Character String INT 0x10
-    ; AH 0x13
-    ; AL Output mode
-    ; BH Display page number
-    ; BL Attribute byte of character
-    ; BP Offset address of number
-    ; CX Number of characters to be displayed
-    ; DH Display line
-    ; DL Display Column
-    ; ES Segment address of buffer
-    mov ax, message
-    mov bp, ax
-    mov cx, 0x0D
-    mov ax, (WRITE_STRING_INT << 8) | 0x01
-    mov bx, 0x0002
-
-    int VIDEO_INTERRUPT
-    
-    
-    message db "Hello, World!", 0x0
+    message db "Real Mode ...", 0x0
+    message_len db ($ - message)
     times 510 - ($ - $$) db 0
     dw 0xaa55
