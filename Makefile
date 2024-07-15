@@ -98,6 +98,7 @@ debug-qemu-gdb: all-debug
 debug-bochs: build-mbr
 	bximage -func=create -hd=256M -imgmode="flat" -q $(BUILD_DIR)/$(HDD_NAME)
 	dd if=$(BIN_DIR)/$(MBR_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 count=1 conv=notrunc
+	dd if=$(BIN_DIR)/$(MBR_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=1 count=1 conv=notrunc
 	bochs -q -f bochs.cfg
 	
 build-mbr: clean $(BIN_DIR)/$(MBR_BIN)
