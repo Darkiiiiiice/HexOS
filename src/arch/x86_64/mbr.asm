@@ -27,17 +27,15 @@
 section _mbr_start:
     mov ax, cs
     mov ds, ax
+    mov es, ax
     mov fs, ax
     mov ss, ax
     mov ax, stack_bottom
     mov sp, ax
-    mov ax, 0xB800
-    mov es, ax
     
     mov bx, 0x00
     push bx
     mov bp, sp
-    mov ax, [bp]
 
     
     ; Clear Screen INT 0x10
@@ -55,7 +53,6 @@ section _mbr_start:
     
     mov ah, 0x07
     mov bx, message
-    mov cx, [message_len]
     
     call _print
     
@@ -65,21 +62,68 @@ section _mbr_start:
     ; BX string address
     ; CX count
 _print:
+    push es
+    mov dx, 0xB800
+    mov es, dx
+    
+    _print_loop:
     mov byte al, [bx]
-    mov di, [bp]
+    
+    cmp al, 0x0
+    je _print_end
+
+    ; cal position with row and col
+    ; position = col + 80 * 2 * row
+    push ax
+    push bx
+    xor ax, ax
+    xor bx, bx
+    mov word dx, [cursor]
+    mov al, 0xA0
+    mul dl
+    
+    push ax
+    
+    mov al, 0x02
+    mul dh
+    mov bx, ax
+
+    pop ax
+
+    add ax, bx
+    mov di, ax
+    pop bx
+    pop ax
+    
+    ; if col == 80 then row + 1
+    cmp dh, 0x50
+    jge _print_cmp_col
+    _print_cmp_end:
+
+    add dh, 0x1
+    
+    mov [cursor], dx
+
     mov [es:di], ax
     inc bx
-    add di, 2
-    mov [bp], di
     
-    loop _print
+    jmp _print_loop
     
+
+    _print_cmp_col:
+    add dl, 0x1
+    mov dh, 0x0    
+    
+    jmp _print_cmp_end
+    
+    _print_end:
+    add di, 0x2
     mov word [es:di], 0x8F5F ; black: wihite : blink '_'
     
+    pop es
     ret
 
-    
-    message db "Real Mode ...", 0x0
-    message_len db ($ - message)
+    cursor dw 0x0
+    message db "Real Mode ...12345678912345678912345678912345678912345678912345678912345678912345678", 0x0
     times 510 - ($ - $$) db 0
     dw 0xaa55
