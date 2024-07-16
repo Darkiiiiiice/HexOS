@@ -26,7 +26,7 @@
     WRITE_STRING_INT equ 0x13
     
     LOADER_START_SECTOR equ 0x01
-    LOADER_BASE_ADDR equ 0x8000
+    LOADER_BASE_ADDR equ 0x9000
     
     ; I/O resgiter
     ATA_SECTOR_PRIMARY equ 0x1F2
@@ -81,18 +81,22 @@ section _mbr_start:
     call _print
     
     mov ax, LOADER_START_SECTOR
-    mov bx, LOADER_BASE_ADDR
+    mov di, LOADER_BASE_ADDR
     mov dx, 0x00
     mov cx, 0x01
     
     call _read_loader
+    
+    mov ah, 0x07
+    mov bx, srlc
+    call _print
     
     
     jmp LOADER_BASE_ADDR
 
     ; Read number of sector from ATA disk
     ; AX start sector  LBA_MID | LBA_LOW   15~8|7~0
-    ; BX load address
+    ; DI load address
     ; CX number of sector
     ; DX start sector Device:4 | LBA_HIGH  27~15|24~-16
 _read_loader:
@@ -139,9 +143,8 @@ _read_loader:
     
     .not_ready:
         in al, dx
-        and al, 0x88
-        cmp al, 0x08
-        jnz .not_ready
+        test al, 0x08
+        jz .not_ready
     
     mov ax, cx
     mov dx, 256
@@ -149,12 +152,7 @@ _read_loader:
     mov cx, ax
 
     mov dx, ATA_DATA_PRIMARY
-    .go_on_read:
-        in ax, dx
-        mov [bx], ax
-        add bx, 0x02
-
-        loop .go_on_read
+    rep insw
 
     pop ds
     ret
@@ -224,7 +222,8 @@ _print:
     ret
 
     cursor dw 0x0
-    message db "Real Mode ...",0xA, 0x0
+    message db "Running in Real Mode ...",0xA, 0x0
     str_read_loader db "Reading loader ......",0xA, 0x0
+    srlc db "Read loader completed", 0xA, 0x0
     times 510 - ($ - $$) db 0
     dw 0xaa55
