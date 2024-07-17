@@ -1,6 +1,7 @@
 ; boot.asm
 ; Date: 2024-07-07
 ; Author: Darkiiiiiice
+%include "src/arch/x86_64/boot.inc"
 
     org 0x7c00
     ; BIOS Entry    0xFFFF0 ~ 0xFFFFF 16B
@@ -16,45 +17,13 @@
     ; stack space   0x00500 ~ 0x07BFF 30KB
     ; BIOS Data     0x00400 ~ 0x004FF 256B
     ; IVT           0x00000 ~ 0x003FF 1KB
-    stack_bottom equ 0x7c00
-    stack_top equ 0x500
-    
-    VIDEO_INTERRUPT equ 0x10
-
-    READ_CURSOR_POS_INT equ 0x03
-    CLEAR_SCREEN_INT equ 0x06
-    WRITE_STRING_INT equ 0x13
-    
-    LOADER_START_SECTOR equ 0x01
-    LOADER_BASE_ADDR equ 0x9000
-    
-    ; I/O resgiter
-    ATA_SECTOR_PRIMARY equ 0x1F2
-    ATA_SECTOR_SECONDARY equ 0x172
-    ATA_LBA_LOW_PRIMARY equ 0x1F3
-    ATA_LBA_LOW_SECONDARY equ 0x173
-    ATA_LBA_MID_PRIMARY equ 0x1F4
-    ATA_LBA_MID_SECONDARY equ 0x174
-    ATA_LBA_HIGH_PRIMARY equ 0x1F5
-    ATA_LBA_HIGH_SECONDARY equ 0x175
-    ATA_DEVICE_PRIMARY equ 0x1F6
-    ATA_DEVICE_SECONDARY equ 0x176
-    ATA_STATUS_PRIMARY equ 0x1F7
-    ATA_STATUS_SECONDARY equ 0x177
-    ATA_COMMAND_PRIMARY equ 0x1F7
-    ATA_COMMAND_SECONDARY equ 0x177
-    ATA_COMMAND_IDENTIFY equ 0xEC
-    ATA_COMMAND_READ equ 0x20
-    ATA_COMMAND_WRITE equ 0x30
-    ATA_DATA_PRIMARY equ 0x1F0
-    ATA_DATA_SECONDARY equ 0x170
 section _mbr_start:
     mov ax, cs
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov ss, ax
-    mov ax, stack_bottom
+    mov ax, mbr_stack_bottom
     mov sp, ax
     
     ; Clear Screen INT 0x10
@@ -83,7 +52,7 @@ section _mbr_start:
     mov ax, LOADER_START_SECTOR
     mov di, LOADER_BASE_ADDR
     mov dx, 0x00
-    mov cx, 0x01
+    mov cx, 0x04
     
     call _read_loader
     

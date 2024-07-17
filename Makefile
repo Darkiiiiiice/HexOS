@@ -13,8 +13,10 @@ INCLUDES := $(patsubst %, -I%, $(INCLUDES_DIR))
 
 OS_NAME = hexos
 MBR_NAME = hexos_mbr
+LOADER_NAME = hexos_loader
 OS_BIN = $(OS_NAME).bin
 MBR_BIN = $(MBR_NAME).bin
+LOADER_BIN = $(LOADER_NAME).bin
 OS_ISO = $(OS_NAME).iso
 HDD_NAME = $(OS_NAME).img
 
@@ -30,9 +32,11 @@ CFLAGS := -std=c23 -ffreestanding -mno-red-zone $(O) $(W)
 LDFLAGS := -ffreestanding $(O) -nostdlib 
 
 MBR_SOURCE_FILES := $(shell find -name "*mbr.asm")
+LOADER_SOURCE_FILES := $(shell find -name "*loader.asm")
 SOURCE_FILES := $(shell find -name "*.[cs]")
 SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(SOURCE_FILES))
 MBR_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(MBR_SOURCE_FILES))
+LOADER_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(LOADER_SOURCE_FILES))
 
 # QEMU_DBG_FLAGS := -s -S -no-reboot -no-shutdown -d cpu,int  
 QEMU_DBG_FLAGS := -s -S  -m 4G -cpu qemu64 
@@ -95,18 +99,25 @@ debug-qemu-gdb: all-debug
 	qemu-system-x86_64 $(QEMU_DBG_FLAGS) -cdrom $(BUILD_DIR)/$(OS_ISO) & \
 	gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:1234"
 	
-debug-bochs: build-mbr
+debug-bochs: build-mbr build-loader
 	bximage -func=create -hd=256M -imgmode="flat" -q $(BUILD_DIR)/$(HDD_NAME)
 	dd if=$(BIN_DIR)/$(MBR_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 count=1 conv=notrunc
-	dd if=$(BIN_DIR)/$(MBR_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=1 count=1 conv=notrunc
+	dd if=$(BIN_DIR)/$(LOADER_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=1 count=1 conv=notrunc
 	bochs -q -f bochs.cfg
 	
 build-mbr: clean $(BIN_DIR)/$(MBR_BIN)
+	
+build-loader: $(BIN_DIR)/$(LOADER_BIN)
 
 # MBR
 $(BIN_DIR)/$(MBR_BIN): $(OBJECT_DIR) $(BIN_DIR) $(MBR_SRC)
 	cp $(MBR_SRC) $(BIN_DIR)/$(MBR_BIN)
 
+# LOADER
+$(BIN_DIR)/$(LOADER_BIN): $(OBJECT_DIR) $(BIN_DIR) $(LOADER_SRC)
+	cp $(LOADER_SRC) $(BIN_DIR)/$(LOADER_BIN)
+
 $(OBJECT_DIR)/%.asm.o: %.asm
 	mkdir -p $(@D)
-	$(AS) -f bin $< -o $@
+	$(AS) -I src/arch/x86_64/boot.inc -f bin $< -o $@
+
