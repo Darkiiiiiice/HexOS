@@ -10,7 +10,7 @@
     GDT_DATA32_DESC  dd 0x0000FFFF
                     dd 0x00CF_9200
     VIDEO_DESC dd 0x8000_0007
-                dd 0x00C0_9200
+                dd 0x00C0_920B
     GDT_SIZE32 equ $ - GDT_BASE32
     GDT_LIMIT32 equ GDT_SIZE32 - 1
     
@@ -61,9 +61,113 @@ _entry_32:
     mov ax, SELECTOR_VIDEO
     mov gs, ax
     
-    mov byte [gs:160], 'P'
+    mov byte [gs:100], 'A'
     
-    jmp $
+    
+    
+    
+    ; clean table 
+    mov edi, 0x1000
+    xor eax, eax
+    mov ecx, 1024 * 4
+    rep stosd
+
+
+    ; set temp PML4
+    xor edi, edi
+    lea eax, [edi + 0x1000]
+    or eax, 0x3
+    mov [edi], eax
+    
+    ; set PDPTE
+    lea eax, [edi + 0x2000]
+    or eax, 0x3
+    mov [edi + 0x1000], eax
+    
+    ; set PDE
+    lea eax, [edi + 0x3000]
+    or eax, 0x3
+    mov [edi + 0x2000], eax
+    
+    ;set PTE
+    lea eax, [edi + 0x4000]
+    or eax, 0x3
+    mov [edi + 0x3000], eax
 
     
+    push edi
+    lea edi, [edi + 0x4000]
+    mov eax, 0x3
+    mov ecx, 512
+    .loop_set_2m_table:
+        mov [edi], eax
+        add eax, 0x1000
+        add edi, 0x08
+        loop .loop_set_2m_table
+    
+    pop edi
+    
+    lidt [IDT]
+    
+    ; set PAE
+    mov eax, cr4
+    or eax, 1 << 5
+    mov cr4, eax
+
+    ; load PML4
+    lea edi, [edi + 0x1000]
+    mov cr3, edi
+    
+    ; set LME
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
+    
+    ; set page table
+    mov eax, cr0
+    or eax, 1
+    or eax, 1 << 31
+    mov cr0, eax 
+    
+    lgdt [GDT_PTR64]
+    
+    jmp SELECTOR_CODE64:_entry_64
+
+    ; set temp gdt 64 
+    GDT_BASE64 dq 0x0
+    GDT_CODE64_DESC dq 0x0020_9800_0000_FFFF
+    GDT_DATA64_DESC dq 0x0000_9200_0000_FFFF
+    
+    GDT_SIZE64 equ $ - GDT_BASE64
+    GDT_LIMIT64 equ GDT_SIZE64 - 1
+    
+    SELECTOR_CODE64 equ 0x08
+    SELECTOR_DATA64 equ 0x10
+    SELECTOR_VIDEO64 equ 0x18
+
+    GDT_PTR64 dw GDT_LIMIT64
+            dd GDT_BASE64
+    
+    IDT dd 0x0
+        dd 0x0
+
+    
+
+    
+[bits 64]
+    
+_entry_64:
+    mov rax, SELECTOR_DATA64
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov fs, ax
+
+    mov esp, LOADER_BASE_ADDR
+    mov ax, SELECTOR_VIDEO64
+    mov gs, ax
+    
+    
+    jmp $
     
