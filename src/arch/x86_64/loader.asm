@@ -153,9 +153,8 @@ _entry_32:
         dd 0x0
 
     
-
-    
 [bits 64]
+    align 8
     
 _entry_64:
     mov rax, SELECTOR_DATA64
@@ -165,9 +164,74 @@ _entry_64:
     mov fs, ax
 
     mov esp, LOADER_BASE_ADDR
-    mov ax, SELECTOR_VIDEO64
-    mov gs, ax
     
+    ; read kernel
+    mov eax, 0x06
+    mov edi, 0x6000
+    mov ecx, 200
+    
+    call _read_kernel
     
     jmp $
+    
+
+    ; Read number of sector from ATA disk
+    ; RAX start sector LBA_HIGH | LBA_MID | LBA_LOW   32~0  
+    ; RDI load address
+    ; RCX number of sector
+_read_kernel:
+    
+    mov r8, rax
+    mov r9, rcx
+    mov r10, rdx
+
+
+    ; 0x1F2 set sector
+    mov dx, ATA_SECTOR_PRIMARY
+    mov rax, rcx 
+    out dx, al
+    
+    
+    mov rax, r8
+    ; 0x1F3 set LBA low address
+    mov dx, ATA_LBA_LOW_PRIMARY
+    out dx, al
+    
+    ; 0x1F4 set LBA middle address
+    mov dx, ATA_LBA_MID_PRIMARY
+    shr rax, 0x8
+    out dx, al
+    
+    ; 0x1F5 set LBA high address
+    mov dx, ATA_LBA_HIGH_PRIMARY
+    shr rax, 0x8
+    out dx, al
+    
+    ; 0x1F6 set LBA high 4bit address
+    mov dx, ATA_DEVICE_PRIMARY
+    shr rax, 0x8
+    or al, 0xE0
+    out dx, al
+    
+    ; 0x1F7 set command read
+    mov dx, ATA_COMMAND_PRIMARY
+    mov al, ATA_COMMAND_READ
+    out dx, al
+    
+    .kernel_not_ready:
+        nop
+        in al, dx
+        test al, 0x08
+        jz .kernel_not_ready
+    
+    mov rax, rcx
+    mov rdx, 512 / 4
+    mul rdx
+    mov rcx, rax
+
+
+    mov dx, ATA_DATA_PRIMARY
+    rep insd
+
+    ret
     

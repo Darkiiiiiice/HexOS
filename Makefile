@@ -20,7 +20,7 @@ LOADER_BIN = $(LOADER_NAME).bin
 OS_ISO = $(OS_NAME).iso
 HDD_NAME = $(OS_NAME).img
 
-LINKER_SCRIPT := src/arch/$(OS_ARCH)/linker.lds
+LINKER_SCRIPT := linker.lds
 
 CC := gcc
 # AS := as
@@ -28,15 +28,17 @@ AS := nasm
 
 O := -O0
 W := -Wall -Wextra
-CFLAGS := -std=c23 -ffreestanding -mno-red-zone $(O) $(W)
-LDFLAGS := -ffreestanding $(O) -nostdlib 
+CFLAGS := -std=c23 -mno-red-zone $(O) $(W)
+LDFLAGS :=  
 
-MBR_SOURCE_FILES := $(shell find -name "*mbr.asm")
-LOADER_SOURCE_FILES := $(shell find -name "*loader.asm")
-SOURCE_FILES := $(shell find -name "*.[cs]")
-SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(SOURCE_FILES))
+MBR_SOURCE_FILES := $(shell find -name "mbr.asm")
 MBR_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(MBR_SOURCE_FILES))
+
+LOADER_SOURCE_FILES := $(shell find -name "loader.asm")
 LOADER_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(LOADER_SOURCE_FILES))
+
+SOURCE_FILES := $(shell find -name "*kernel*.asm")
+SRC := $(patsubst ./%, $(OBJECT_DIR)/%.k.o, $(SOURCE_FILES))
 
 # QEMU_DBG_FLAGS := -s -S -no-reboot -no-shutdown -d cpu,int  
 QEMU_DBG_FLAGS := -s -S  -m 4G -cpu qemu64 
@@ -46,6 +48,10 @@ echo:
 	echo $(BIN_DIR)
 	echo $(MBR_SOURCE_FILES)
 	echo $(MBR_SRC)
+	echo $(LOADER_SOURCE_FILES)
+	echo $(LOADER_SRC)
+	echo $(SOURCE_FILES)
+	echo $(SRC)
 
 $(OBJECT_DIR):
 	mkdir -p $(OBJECT_DIR)
@@ -59,10 +65,6 @@ $(ISO_DIR):
 	mkdir -p $(ISO_BOOT_DIR)
 	mkdir -p $(ISO_GRUB_DIR)
 	
-$(OBJECT_DIR)/%.s.o: %.s
-	mkdir -p $(@D)
-	$(AS) -f elf64 $< -o $@
-
 
 $(OBJECT_DIR)/%.c.o: %.c
 	mkdir -p $(@D)
@@ -79,7 +81,7 @@ $(BUILD_DIR)/$(OS_ISO): $(ISO_DIR) $(BIN_DIR)/$(OS_BIN)
 all: clean $(BUILD_DIR)/$(OS_ISO)
 
 all-debug: O := -O0
-all-debug: CFLAGS := -g -std=c23 -ffreestanding $(O) $(W) -fomit-frame-pointer
+all-debug: CFLAGS := -g -std=c23  $(O) $(W) -fomit-frame-pointer
 all-debug: LDFLAGS :=  $(0) 
 all-debug: clean $(BUILD_DIR)/$(OS_ISO)
 	objdump -M intel -D $(BIN_DIR)/$(OS_BIN) > dump
@@ -99,15 +101,19 @@ debug-qemu-gdb: all-debug
 	qemu-system-x86_64 $(QEMU_DBG_FLAGS) -cdrom $(BUILD_DIR)/$(OS_ISO) & \
 	gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:1234"
 	
-debug-bochs: build-mbr build-loader
+debug-bochs: build-mbr build-loader build-kernel
+	objdump -M intel -D $(BIN_DIR)/$(OS_BIN) > dump
 	bximage -func=create -hd=256M -imgmode="flat" -q $(BUILD_DIR)/$(HDD_NAME)
 	dd if=$(BIN_DIR)/$(MBR_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 count=1 conv=notrunc
-	dd if=$(BIN_DIR)/$(LOADER_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=1 count=1 conv=notrunc
+	dd if=$(BIN_DIR)/$(LOADER_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=1 count=2 conv=notrunc
+	dd if=$(BIN_DIR)/$(OS_BIN) of=$(BUILD_DIR)/$(HDD_NAME) bs=512 seek=6  conv=notrunc
 	bochs -q -f bochs.cfg
 	
 build-mbr: clean $(BIN_DIR)/$(MBR_BIN)
 	
 build-loader: $(BIN_DIR)/$(LOADER_BIN)
+
+build-kernel: $(BIN_DIR)/$(OS_BIN)
 
 # MBR
 $(BIN_DIR)/$(MBR_BIN): $(OBJECT_DIR) $(BIN_DIR) $(MBR_SRC)
@@ -117,7 +123,12 @@ $(BIN_DIR)/$(MBR_BIN): $(OBJECT_DIR) $(BIN_DIR) $(MBR_SRC)
 $(BIN_DIR)/$(LOADER_BIN): $(OBJECT_DIR) $(BIN_DIR) $(LOADER_SRC)
 	cp $(LOADER_SRC) $(BIN_DIR)/$(LOADER_BIN)
 
+
 $(OBJECT_DIR)/%.asm.o: %.asm
 	mkdir -p $(@D)
 	$(AS) -I src/arch/x86_64/boot.inc -f bin $< -o $@
 
+
+$(OBJECT_DIR)/%.asm.k.o: %.asm
+	mkdir -p $(@D)
+	$(AS) -I src/include -f elf64 $< -o $@
