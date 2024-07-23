@@ -244,10 +244,11 @@ _kernel_init:
     xor rcx, rcx
     xor rdx, rdx
     
+    ; mapping 0xFFFF8000_00000000 to phy 0x00000000_00000000
     mov rdi, 0x1000
     lea rax, [rdi + 0x1000]
     or eax, 0x3
-    mov [rdi + (0x100 - 1) * 8], rax
+    mov [rdi + 0x100 * 8], rax
     
     
     ret
