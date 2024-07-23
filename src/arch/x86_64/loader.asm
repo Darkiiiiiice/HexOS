@@ -63,9 +63,6 @@ _entry_32:
     
     mov byte [gs:100], 'A'
     
-    
-    
-    
     ; clean table 
     mov edi, 0x1000
     xor eax, eax
@@ -156,6 +153,9 @@ _entry_32:
 [bits 64]
     align 8
     
+    KERNEL_SETUP_ADDR equ 0x6000
+    KERNEL_SIZE equ 200
+    
 _entry_64:
     mov rax, SELECTOR_DATA64
     mov ds, ax
@@ -167,13 +167,14 @@ _entry_64:
     
     ; read kernel
     mov eax, 0x06
-    mov edi, 0x6000
-    mov ecx, 200
+    mov edi, KERNEL_SETUP_ADDR
+    mov ecx, KERNEL_SIZE
     
     call _read_kernel
     
-    jmp $
+    call _kernel_init
     
+    hlt
 
     ; Read number of sector from ATA disk
     ; RAX start sector LBA_HIGH | LBA_MID | LBA_LOW   32~0  
@@ -235,3 +236,18 @@ _read_kernel:
 
     ret
     
+
+_kernel_init:
+    
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    xor rdx, rdx
+    
+    mov rdi, 0x1000
+    lea rax, [rdi + 0x1000]
+    or eax, 0x3
+    mov [rdi + (0x100 - 1) * 8], rax
+    
+    
+    ret

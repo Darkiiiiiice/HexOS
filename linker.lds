@@ -4,12 +4,7 @@ OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
 SECTIONS {
-    . = 1M;
-
-    .boot ALIGN (0x1000):
-    {
-        *(.multiboot2_header)
-    }
+    . = 0xFFFF800000000000;
 
     .text ALIGN (0x1000):
     {
