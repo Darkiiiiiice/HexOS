@@ -3,9 +3,10 @@
 [bits 64]
     align 8
 
-[section .data]
+[segment .data]
+    hello db "HelloWor"
     
-[section .text]
+[segment .text]
 
     ; mapping 0xFFFF8000_00000000 to phy 0x00000000_00000000
     mov rax, cr3
@@ -27,7 +28,7 @@
 
     jmp $
     
-[section .bss]
+[segment .bss]
     _kernel_stack_bottom:
-    resq 0x100000 ; 8M stack
+    resq 0x1000 ; 32k stack
     _kernel_stack_top:
