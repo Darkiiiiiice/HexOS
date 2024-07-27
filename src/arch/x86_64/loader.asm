@@ -95,7 +95,7 @@ _entry_32:
     push edi
     lea edi, [edi + 0x4000]
     mov eax, 0x3
-    mov ecx, 512
+    mov ecx, 0x200
     .loop_set_2m_table:
         mov [edi], eax
         add eax, 0x1000
@@ -153,8 +153,9 @@ _entry_32:
 [bits 64]
     align 8
     
-    KERNEL_SETUP_ADDR equ 0x6000
-    KERNEL_SIZE equ 200
+    KERNEL_SETUP_ADDR equ 0x10000
+    KERNEL_SIZE equ 0x780
+    
     
 _entry_64:
     mov rax, SELECTOR_DATA64
@@ -166,9 +167,9 @@ _entry_64:
     mov esp, LOADER_BASE_ADDR
     
     ; read kernel
-    mov eax, 0x06
-    mov edi, KERNEL_SETUP_ADDR
-    mov ecx, KERNEL_SIZE
+    mov rax, 0x06
+    mov rdi, KERNEL_SETUP_ADDR
+    mov rcx, KERNEL_SIZE
     
     call _read_kernel
     
@@ -251,4 +252,100 @@ _kernel_init:
     mov [rdi + 0x100 * 8], rax
     
     
+    mov rdi, KERNEL_SETUP_ADDR
+    mov rdx, [rdi]
+    
+    ; check ELF Magic 0x7F
+    cmp dl, 0x7F
+    jne _not_elf
+    
+    call _is_elf
+
+    ; print 'E'
+    shr rdx, 8
+    mov al, dl
+    mov bx, 11 * 80 * 2 + 2 * 0
+    call _print_char
+
+    ; print 'L'
+    shr rdx, 8
+    mov al, dl
+    mov bx, 11 * 80 * 2 + 2 * 1
+    call _print_char
+
+    ; print 'F'
+    shr rdx, 8
+    mov al, dl
+    mov bx, 11 * 80 * 2 + 2 * 2
+    call _print_char
+    
+    ; check elf64 or elf32
+    shr rdx, 8
+    cmp dl, 0x2
+    jnz _is_32bit
+    
+    call _is_64bit
+    
+    mov dx, [rdi + 16]
+    
     ret
+
+_is_32bit:
+    mov al, '3'
+    mov bx, 12 * 80 * 2 + 2 * 0
+    call _print_char
+    mov al, '2'
+    mov bx, 12 * 80 * 2 + 2 * 1
+    call _print_char
+    
+    hlt
+    
+_is_64bit:
+    mov al, '6'
+    mov bx, 12 * 80 * 2 + 2 * 0
+    call _print_char
+    mov al, '4'
+    mov bx, 12 * 80 * 2 + 2 * 1
+    call _print_char
+
+_is_elf:
+    push rdi
+    
+    mov ah, 0x07
+    mov al, 'E'
+    mov rdi, 0xB8000
+    mov [rdi + 10 * 80 * 2  ], ax
+    
+    pop rdi
+    ret
+    
+
+_not_elf:
+    mov ah, 0x07
+    mov al, 'N'
+    mov rdi, 0xB8000
+    mov [rdi + 10 * 80 * 8 ], ax
+    
+    hlt
+
+    
+_print_char:
+    push rdi
+    
+    mov rdi, 0xB8000
+    mov ah, 0x07
+    
+    mov [rdi + rbx], ax
+
+    pop rdi
+    ret
+    
+
+_setup_kernel:
+
+    ret
+
+    not_elf db "Not ELF Kernel ..."
+    not_elf_len equ $ - not_elf
+    is_elf db "ELF Kernel ..."
+    is_elf_len equ $ - is_elf
