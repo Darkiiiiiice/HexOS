@@ -155,6 +155,7 @@ _entry_32:
     
     KERNEL_SETUP_ADDR equ 0x10000
     KERNEL_SIZE equ 0x780
+    KERNEL_BASE_ADDR equ 0xFFFF8000_00100000
     
     
 _entry_64:
@@ -174,6 +175,8 @@ _entry_64:
     call _read_kernel
     
     call _kernel_init
+    
+    jmp KERNEL_BASE_ADDR
     
     hlt
 
@@ -286,7 +289,55 @@ _kernel_init:
     
     call _is_64bit
     
-    mov dx, [rdi + 16]
+    ; e_ident = 16
+    ; e_type = 2
+    ; e_machine = 2
+    ; e_version = 4
+    ; e_entry = 8
+    ; e_phoff = 8
+    ; e_shoff = 8
+    ; e_flags = 4
+    ; e_ehsize = 2
+    ; e_phentsize = 2
+    ; e_phnum = 2
+    ; e_shentsize = 2
+    ; e_shnum = 2
+    ; e_shstrndx = 2
+
+    ; dx = e_phentsize
+    xor rdx, rdx
+    mov dx, [rdi + 16 + 2 + 2 + 4 + 8 + 8 + 8 + 4 + 2]
+    ; rbx = e_phoff + KERNEL_SETUP_ADDR
+    xor rbx, rbx
+    mov rbx, [rdi + 16 + 2 + 2 + 4 + 8]
+    add rbx, KERNEL_SETUP_ADDR
+    ; cx = e_phnum
+    xor rcx, rcx
+    mov cx, [rdi + 16 + 2 + 2 + 4 + 8 + 8 + 8 + 4 + 2 + 2]
+    
+    .iter_segemnt:
+        cmp byte [rbx + 0], 0x0
+        je  .PTNULL
+    
+        ; dst
+        push rcx
+        ; p_filesz
+        mov ecx, [rbx + 32]
+        ; src p_offset
+        mov rax, [rbx + 8]
+        add rax, KERNEL_SETUP_ADDR
+        mov rsi, rax
+        ; dst p_vaddr
+        mov rax, [rbx + 16]
+        mov rdi, rax
+    
+        
+        call _mem_cpy
+        pop rcx
+
+        .PTNULL:
+            add rbx, rdx
+        loop .iter_segemnt
     
     ret
 
@@ -349,3 +400,15 @@ _setup_kernel:
     not_elf_len equ $ - not_elf
     is_elf db "ELF Kernel ..."
     is_elf_len equ $ - is_elf
+    
+_mem_cpy:
+    push rbp
+    mov rbp, rsp
+
+    cld
+    rep movsb
+    
+    mov rsp, rbp
+    pop rbp
+    ret
+    

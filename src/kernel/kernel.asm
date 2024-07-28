@@ -24,6 +24,8 @@
     
     mov rsp, _kernel_stack_top
     
+    mov rax, 0x123456789
+    
 
 
     jmp $
