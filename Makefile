@@ -37,7 +37,7 @@ MBR_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(MBR_SOURCE_FILES))
 LOADER_SOURCE_FILES := $(shell find -name "loader.asm")
 LOADER_SRC := $(patsubst ./%, $(OBJECT_DIR)/%.o, $(LOADER_SOURCE_FILES))
 
-SOURCE_FILES := $(shell find -name "*kernel*.asm")
+SOURCE_FILES := $(shell find -path "./src/kernel/*.asm")
 SRC := $(patsubst ./%, $(OBJECT_DIR)/%.k.o, $(SOURCE_FILES))
 
 # QEMU_DBG_FLAGS := -s -S -no-reboot -no-shutdown -d cpu,int  

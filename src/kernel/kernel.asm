@@ -1,30 +1,17 @@
 %include "src/include/kernel.inc"
 
+    extern _setup_gdt
+    extern _setup_high_mem_mapping
 [bits 64]
     align 8
     
+    
 [segment .text]
 _start:
-    ; set new gdt
-    mov rdi, 0x6000
-    mov word [rdi], 0x17
-    mov rax, 0x6010
-    mov [rdi + 0x2], rax
-    mov rax, 0x00
-    mov [rdi + 0x10],  rax
-    mov rax, KERNEL_GDT_CODE64
-    mov [rdi + 0x18], rax
-    mov rax, KERNEL_GDT_DATA64
-    mov [rdi + 0x20], rax
     
-    lgdt [rdi]
-
-    ; mapping 0xFFFF8000_00000000 to phy 0x00000000_00000000
-    mov rax, cr3
-    mov rdi, rax
-    lea rax, [rdi + 0x1000]
-    or eax, 0x3
-    mov [rdi + 0x100 * 8], rax
+    call _setup_gdt
+    
+    call _setup_high_mem_mapping
 
     mov ax, SELECTOR_DATA64
     mov ds, ax
